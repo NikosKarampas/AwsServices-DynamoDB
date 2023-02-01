@@ -1,56 +1,93 @@
-﻿using Customers.Api.Contracts.Data;
-using Customers.Api.Database;
-using Dapper;
+﻿using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.DocumentModel;
+using Amazon.DynamoDBv2.Model;
+using Customers.Api.Contracts.Data;
+using System.Net;
+using System.Text.Json;
 
 namespace Customers.Api.Repositories;
 
 public class CustomerRepository : ICustomerRepository
 {
-    private readonly IDbConnectionFactory _connectionFactory;
+    private readonly IAmazonDynamoDB _dynamoDB;
+    private readonly string _tableItem = "customers";
 
-    public CustomerRepository(IDbConnectionFactory connectionFactory)
-    {
-        _connectionFactory = connectionFactory;
+    public CustomerRepository(IAmazonDynamoDB dynamoDB)
+    {        
+        _dynamoDB = dynamoDB;
     }
 
     public async Task<bool> CreateAsync(CustomerDto customer)
     {
-        using var connection = await _connectionFactory.CreateConnectionAsync();
-        var result = await connection.ExecuteAsync(
-            @"INSERT INTO Customers (Id, GitHubUsername, FullName, Email, DateOfBirth) 
-            VALUES (@Id, @GitHubUsername, @FullName, @Email, @DateOfBirth)",
-            customer);
-        return result > 0;
+        customer.UpdatedAt = DateTime.UtcNow;
+        var customerAsJson = JsonSerializer.Serialize(customer);
+        var customerAsAttributes = Document.FromJson(customerAsJson).ToAttributeMap();
+
+        var createItemRequest = new PutItemRequest
+        {
+            TableName = _tableItem,
+            Item = customerAsAttributes
+        };
+
+        var response = await _dynamoDB.PutItemAsync(createItemRequest);
+        return response.HttpStatusCode == HttpStatusCode.OK;
     }
 
     public async Task<CustomerDto?> GetAsync(Guid id)
     {
-        using var connection = await _connectionFactory.CreateConnectionAsync();
-        return await connection.QuerySingleOrDefaultAsync<CustomerDto>(
-            "SELECT * FROM Customers WHERE Id = @Id LIMIT 1", new { Id = id });
+        var getItemRequest = new GetItemRequest
+        {
+            TableName = _tableItem,
+            Key = new Dictionary<string, AttributeValue>
+            {
+               { "pk", new AttributeValue { S = id.ToString() } },
+               { "sk", new AttributeValue { S = id.ToString() } },
+            }
+        };
+
+        var response = await _dynamoDB.GetItemAsync(getItemRequest);
+
+        if (response.Item.Count == 0)
+            return null;
+
+        var itemAsDocument = Document.FromAttributeMap(response.Item);
+        return JsonSerializer.Deserialize<CustomerDto?>(itemAsDocument.ToJson());
     }
 
     public async Task<IEnumerable<CustomerDto>> GetAllAsync()
     {
-        using var connection = await _connectionFactory.CreateConnectionAsync();
-        return await connection.QueryAsync<CustomerDto>("SELECT * FROM Customers");
+        throw new NotImplementedException();
     }
 
     public async Task<bool> UpdateAsync(CustomerDto customer)
     {
-        using var connection = await _connectionFactory.CreateConnectionAsync();
-        var result = await connection.ExecuteAsync(
-            @"UPDATE Customers SET GitHubUsername = @GitHubUsername, FullName = @FullName, Email = @Email, 
-                 DateOfBirth = @DateOfBirth WHERE Id = @Id",
-            customer);
-        return result > 0;
+        customer.UpdatedAt = DateTime.UtcNow;
+        var customerAsJson = JsonSerializer.Serialize(customer);
+        var customerAsAttributes = Document.FromJson(customerAsJson).ToAttributeMap();
+
+        var updateItemRequest = new PutItemRequest
+        {
+            TableName = _tableItem,
+            Item = customerAsAttributes
+        };
+
+        var response = await _dynamoDB.PutItemAsync(updateItemRequest);
+        return response.HttpStatusCode == HttpStatusCode.OK;
     }
 
     public async Task<bool> DeleteAsync(Guid id)
     {
-        using var connection = await _connectionFactory.CreateConnectionAsync();
-        var result = await connection.ExecuteAsync(@"DELETE FROM Customers WHERE Id = @Id",
-            new {Id = id});
-        return result > 0;
+        var deleteItemRequest = new DeleteItemRequest
+        {
+            TableName = _tableItem,
+            Key = new Dictionary<string, AttributeValue>
+            {
+               { "pk", new AttributeValue { S = id.ToString() } },
+               { "sk", new AttributeValue { S = id.ToString() } },
+            }
+        };
+
+        var response = await _dynamoDB.DeleteItemAsync(deleteItemRequest);
+        return response.HttpStatusCode == HttpStatusCode.OK;
     }
 }
