@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
+using Amazon.Runtime.Internal.Transform;
 using Customers.Api.Contracts.Data;
 using System.Net;
 using System.Text.Json;
@@ -59,7 +60,7 @@ public class CustomerRepository : ICustomerRepository
         throw new NotImplementedException();
     }
 
-    public async Task<bool> UpdateAsync(CustomerDto customer)
+    public async Task<bool> UpdateAsync(CustomerDto customer, DateTime requestStarted)
     {
         customer.UpdatedAt = DateTime.UtcNow;
         var customerAsJson = JsonSerializer.Serialize(customer);
@@ -68,7 +69,12 @@ public class CustomerRepository : ICustomerRepository
         var updateItemRequest = new PutItemRequest
         {
             TableName = _tableItem,
-            Item = customerAsAttributes
+            Item = customerAsAttributes,
+            ConditionExpression = "UpdatedAt < :requestStarted", //if updatedAt of server is greater than requeststarted then throw exception
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                { ":requestStarted", new AttributeValue { S = requestStarted.ToString("O") } }
+            }
         };
 
         var response = await _dynamoDB.PutItemAsync(updateItemRequest);
