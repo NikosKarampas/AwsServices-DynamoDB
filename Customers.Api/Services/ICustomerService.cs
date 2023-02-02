@@ -8,9 +8,11 @@ public interface ICustomerService
 
     Task<Customer?> GetAsync(Guid id);
 
+    Task<Customer?> GetByEmailAsync(string email);
+
     Task<IEnumerable<Customer>> GetAllAsync();
 
     Task<bool> UpdateAsync(Customer customer, DateTime requestStarted);
 
-    Task<bool> DeleteAsync(Guid id);
+    Task<bool> DeleteAsync(Guid id);    
 }

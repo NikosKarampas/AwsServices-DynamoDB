@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime.Internal.Transform;
 using Customers.Api.Contracts.Data;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using System.Net;
 using System.Text.Json;
 
@@ -55,6 +56,30 @@ public class CustomerRepository : ICustomerRepository
         return JsonSerializer.Deserialize<CustomerDto?>(itemAsDocument.ToJson());
     }
 
+    public async Task<CustomerDto?> GetByEmailAsync(string email)
+    {
+        var queryRequest = new QueryRequest
+        {
+            TableName = _tableItem,
+            IndexName = "Email-id-index",
+            KeyConditionExpression = "Email = :v_Email",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                {
+                    ":v_Email", new AttributeValue { S = email }
+                }
+            }
+        };
+
+        var response = await _dynamoDB.QueryAsync(queryRequest);
+
+        if (response.Items.Count == 0)
+            return null;
+
+        var itemAsDocument = Document.FromAttributeMap(response.Items[0]);
+        return JsonSerializer.Deserialize<CustomerDto>(itemAsDocument.ToJson());
+    }
+
     public async Task<IEnumerable<CustomerDto>> GetAllAsync()
     {
         throw new NotImplementedException();
@@ -95,5 +120,5 @@ public class CustomerRepository : ICustomerRepository
 
         var response = await _dynamoDB.DeleteItemAsync(deleteItemRequest);
         return response.HttpStatusCode == HttpStatusCode.OK;
-    }
+    }    
 }
