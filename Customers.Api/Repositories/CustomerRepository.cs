@@ -39,7 +39,7 @@ public class CustomerRepository : ICustomerRepository
     {
         var getItemRequest = new GetItemRequest
         {
-            TableName = _tableItem,
+            TableName = _tableItem,            
             Key = new Dictionary<string, AttributeValue>
             {
                { "pk", new AttributeValue { S = id.ToString() } },
@@ -60,7 +60,7 @@ public class CustomerRepository : ICustomerRepository
     {
         var queryRequest = new QueryRequest
         {
-            TableName = _tableItem,
+            TableName = _tableItem,                     
             IndexName = "Email-id-index",
             KeyConditionExpression = "Email = :v_Email",
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
